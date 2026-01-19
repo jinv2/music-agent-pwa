@@ -1,0 +1,9 @@
+{
+  "name": "music-agent-pwa",
+  "version": "1.0.0",
+  "description": "AI Music Orchestrator",
+  "dependencies": {
+    "openai": "^4.0.0",
+    "dotenv": "^16.0.0"
+  }
+}

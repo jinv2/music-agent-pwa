@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能配器大师</title>
+    <!-- 引入 abcjs 用于显示乐谱 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+    <!-- 引入 Tone.js 用于播放 (可选后续功能) -->
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        textarea { width: 100%; height: 80px; font-family: monospace; }
+        button { padding: 10px 20px; background: #000; color: #fff; border: none; cursor: pointer; margin-top: 10px;}
+        #paper { background: #f4f4f4; padding: 20px; margin-top: 20px; border-radius: 8px; min-height: 200px;}
+        .loading { color: #666; font-style: italic; display: none; }
+    </style>
+</head>
+<body>
+    <h1>AI 智能配器助手</h1>
+    <p>输入主旋律 (ABC记谱法，例如: C D E F | G A B c):</p>
+    
+    <!-- 默认给一个简单旋律 -->
+    <textarea id="melodyInput">C D E F | G2 G2 | A A B B | c4</textarea>
+    
+    <button onclick="orchestrate()">🤖 智能生成四部和声</button>
+    <span id="loading" class="loading">智能体正在思考配器逻辑...</span>
+
+    <div id="paper"></div>
+
+    <script>
+        // 初始化显示原本的旋律
+        window.onload = function() {
+            ABCJS.renderAbc("paper", document.getElementById("melodyInput").value);
+        }
+
+        async function orchestrate() {
+            const melody = document.getElementById("melodyInput").value;
+            const loading = document.getElementById("loading");
+            const paper = document.getElementById("paper");
+            
+            loading.style.display = "inline";
+            paper.style.opacity = "0.5";
+
+            try {
+                // 调用 Netlify Function (我们的智能体)
+                const response = await fetch('/.netlify/functions/composer', {
+                    method: 'POST',
+                    body: JSON.stringify({ melody: melody })
+                });
+
+                const data = await response.json();
+
+                if (data.result) {
+                    // 渲染智能体生成的复杂乐谱
+                    ABCJS.renderAbc("paper", data.result);
+                } else {
+                    alert("智能体出错了: " + (data.error || "未知错误"));
+                }
+            } catch (e) {
+                console.error(e);
+                alert("网络连接失败");
+            } finally {
+                loading.style.display = "none";
+                paper.style.opacity = "1";
+            }
+        }
+    </script>
+</body>
