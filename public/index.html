@@ -3,62 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 智能配器大师</title>
-    <!-- 引入 abcjs 用于显示乐谱 -->
+    <title>AI 智能配器大师 (BYOK版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
-    <!-- 引入 Tone.js 用于播放 (可选后续功能) -->
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-        textarea { width: 100%; height: 80px; font-family: monospace; }
-        button { padding: 10px 20px; background: #000; color: #fff; border: none; cursor: pointer; margin-top: 10px;}
-        #paper { background: #f4f4f4; padding: 20px; margin-top: 20px; border-radius: 8px; min-height: 200px;}
-        .loading { color: #666; font-style: italic; display: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #f9f9f9; color: #333;}
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; color: #2c3e50; }
+        label { display: block; margin-top: 15px; font-weight: bold; margin-bottom: 5px; }
+        input[type="password"], textarea { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; }
+        input[type="password"] { background: #f0f4f8; }
+        textarea { height: 80px; }
+        button { width: 100%; padding: 12px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 20px; transition: background 0.2s;}
+        button:hover { background: #1d4ed8; }
+        #paper { margin-top: 30px; background: #fff; border: 1px solid #eee; border-radius: 8px; min-height: 150px; padding: 10px;}
+        .note { font-size: 0.9em; color: #666; margin-top: 5px; }
+        .loading { display: none; text-align: center; margin-top: 10px; color: #2563eb; font-weight: bold; }
+        .error { color: #dc2626; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
-    <h1>AI 智能配器助手</h1>
-    <p>输入主旋律 (ABC记谱法，例如: C D E F | G A B c):</p>
-    
-    <!-- 默认给一个简单旋律 -->
-    <textarea id="melodyInput">C D E F | G2 G2 | A A B B | c4</textarea>
-    
-    <button onclick="orchestrate()">🤖 智能生成四部和声</button>
-    <span id="loading" class="loading">智能体正在思考配器逻辑...</span>
+    <div class="container">
+        <h1>🎹 AI 智能配器助手</h1>
+        
+        <!-- 新增：API Key 输入区域 -->
+        <label for="apiKey">DeepSeek API Key</label>
+        <input type="password" id="apiKey" placeholder="请输入 sk- 开头的密钥">
+        <p class="note">您的密钥仅用于本次请求，我们会自动保存在您的浏览器本地，不会上传到服务器存储。</p>
 
-    <div id="paper"></div>
+        <label for="melodyInput">主旋律 (ABC记谱法)</label>
+        <textarea id="melodyInput">C D E F | G2 G2 | A A B B | c4</textarea>
+        
+        <button onclick="orchestrate()">✨ 开始智能编曲</button>
+        
+        <div id="loading" class="loading">正在调用 DeepSeek 进行音乐推理...</div>
+        <div id="errorBox" class="error"></div>
+
+        <div id="paper"></div>
+    </div>
 
     <script>
-        // 初始化显示原本的旋律
+        const apiKeyInput = document.getElementById("apiKey");
+
+        // 1. 页面加载时，尝试从本地存储读取 Key
         window.onload = function() {
+            const savedKey = localStorage.getItem("deepseek_key");
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            }
             ABCJS.renderAbc("paper", document.getElementById("melodyInput").value);
         }
 
         async function orchestrate() {
             const melody = document.getElementById("melodyInput").value;
+            const apiKey = apiKeyInput.value.trim();
             const loading = document.getElementById("loading");
+            const errorBox = document.getElementById("errorBox");
             const paper = document.getElementById("paper");
+
+            // 简单校验
+            if (!apiKey) {
+                alert("请先输入 DeepSeek API Key！");
+                return;
+            }
             
-            loading.style.display = "inline";
+            // 2. 保存 Key 到本地，方便下次使用
+            localStorage.setItem("deepseek_key", apiKey);
+
+            loading.style.display = "block";
+            errorBox.style.display = "none";
             paper.style.opacity = "0.5";
 
             try {
-                // 调用 Netlify Function (我们的智能体)
+                // 3. 把 Key 和旋律一起发给后端
                 const response = await fetch('/.netlify/functions/composer', {
                     method: 'POST',
-                    body: JSON.stringify({ melody: melody })
+                    body: JSON.stringify({ 
+                        melody: melody,
+                        apiKey: apiKey  // <--- 关键点：Key 从前端传过去
+                    })
                 });
 
                 const data = await response.json();
 
-                if (data.result) {
-                    // 渲染智能体生成的复杂乐谱
+                if (response.ok && data.result) {
                     ABCJS.renderAbc("paper", data.result);
                 } else {
-                    alert("智能体出错了: " + (data.error || "未知错误"));
+                    throw new Error(data.error || "生成失败");
                 }
             } catch (e) {
                 console.error(e);
-                alert("网络连接失败");
+                errorBox.innerText = "❌ 出错了: " + e.message;
+                errorBox.style.display = "block";
             } finally {
                 loading.style.display = "none";
                 paper.style.opacity = "1";
